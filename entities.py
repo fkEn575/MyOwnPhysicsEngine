@@ -1,30 +1,121 @@
-WINDOW_WIDTH = 960
-WINDOW_HEIGHT = 540
-FPS = 60
 
-# 물리 파라미터
-SWORD_BASE_MASS = 1.5  # kg, 기본 롱소드 질량
-SWORD_MIN_MASS = 0.5
-SWORD_MAX_MASS = 4.0
+import pygame
+from config import (
+    SCARECROW_RECT, SCARECROW_COLOR, SCARECROW_OUTLINE,
+    SLASH_COLOR, SLASH_SHALLOW_WIDTH, SLASH_MEDIUM_WIDTH, SLASH_DEEP_WIDTH
+)
+from physics import distance
 
-# 허수아비(밀짚) 잘리는 임계값들 (임팩트 값 기준)
-# 값은 게임 밸런스용이라 자유롭게 조정하면 됩니다.
-CUT_THRESHOLDS = {
-    "no_cut": 5.0,     # 이하면 안 베임
-    "shallow": 15.0,   # 얕게
-    "medium": 35.0,    # 중간
-    "deep": 70.0,      # 깊게
-}
+class Scarecrow:
+    def __init__(self):
+        self.base_rect = pygame.Rect(SCARECROW_RECT)
+        self.cuts = []  # 각 cut: {"points": [...], "depth": "shallow/medium/deep"}
 
-SCARECROW_RECT = (WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT // 2 - 120, 120, 240)
+    def reset(self):
+        self.cuts.clear()
 
-BACKGROUND_COLOR = (30, 30, 30)
-SCARECROW_COLOR = (180, 160, 80)
-SCARECROW_OUTLINE = (100, 80, 40)
+    def apply_slash(self, points, depth):
+        """
+        slash 경로(points)가 허수아비와 겹치면 커트로 등록.
+        depth: "shallow", "medium", "deep"
+        """
+        if depth == "none":
+            return
+        if len(points) < 2:
+            return
 
-SLASH_COLOR = (220, 30, 30)
-SLASH_SHALLOW_WIDTH = 2
-SLASH_MEDIUM_WIDTH = 4
-SLASH_DEEP_WIDTH = 7
+        # 허수아비 rect 안을 지나갔는지 간단 검증
+        if not self._path_intersects_rect(points, self.base_rect):
+            return
 
-HUD_TEXT_COLOR = (230, 230, 230)
+        self.cuts.append({
+            "points": list(points),
+            "depth": depth
+        })
+
+    def _path_intersects_rect(self, points, rect):
+        """아주 단순하게: 경로 중 하나라도 rect 안에 들어오면 통과했다고 판단."""
+        for x, y in points:
+            if rect.collidepoint(x, y):
+                return True
+        return False
+
+    def draw(self, surface):
+        # 몸통
+        pygame.draw.rect(surface, SCARECROW_COLOR, self.base_rect)
+        pygame.draw.rect(surface, SCARECROW_OUTLINE, self.base_rect, 2)
+
+        # 잘린 자국들
+        for cut in self.cuts:
+            pts = cut["points"]
+            if len(pts) < 2:
+                continue
+            depth = cut["depth"]
+            if depth == "shallow":
+                width = SLASH_SHALLOW_WIDTH
+            elif depth == "medium":
+                width = SLASH_MEDIUM_WIDTH
+            else:
+                width = SLASH_DEEP_WIDTH
+            pygame.draw.lines(surface, SLASH_COLOR, False, pts, width)
+
+
+class SwordTrail:
+    """
+    한 번의 휘두르기(마우스 드래그)에 대한 궤적 & 그 동안의 최대 임팩트.
+    """
+    def __init__(self):
+        self.points = []
+        self.max_impact = 0.0
+        self.depth = "none"
+
+    def add_point(self, pos, impact_value, classify_fn):
+        self.points.append(pos)
+        if impact_value > self.max_impact:
+            self.max_impact = impact_value
+            self.depth = classify_fn(self.max_impact)
+
+    def clear(self):
+        self.points.clear()
+        self.max_impact = 0.0
+        self.depth = "none"
+
+
+class SwordController:
+    """
+    마우스 위치를 그대로 쓰지 않고,
+    '검 팁 위치'가 마우스를 따라가되 무게에 따라 느리게 움직이게 하는 컨트롤러.
+    """
+    def __init__(self, mass, start_pos):
+        self.mass = mass
+        self.pos = pygame.Vector2(start_pos)
+
+    def set_mass(self, mass):
+        self.mass = mass
+
+    def update(self, target_pos, dt):
+        """
+        target_pos: 실제 마우스 위치
+        dt: 프레임 간 시간(초)
+        """
+        target = pygame.Vector2(target_pos)
+        direction = target - self.pos
+        dist = direction.length()
+        if dist == 0:
+            return self.pos
+
+        # 질량이 클수록 느리게(가속도 작게) 따라감
+        stiffness = 30.0 / max(self.mass, 0.1)  # mass 커질수록 값 감소
+        step = stiffness * dt * dist
+
+        if step >= dist:
+            self.pos = target
+        else:
+            direction.scale_to_length(step)
+            self.pos += direction
+
+        return self.pos
+
+    def draw(self, surface):
+        # 검 팁을 작은 원으로 표현
+        pygame.draw.circle(surface, (200, 200, 255), (int(self.pos.x), int(self.pos.y)), 5)
