@@ -174,10 +174,17 @@ class SwordController:
         target_pos: 실제 마우스 위치
         dt: 프레임 간 시간(초)
         """
+        # dt가 0이면 움직임 계산 안 함 (속도 계산에서도 비슷한 방어가 있음)
+        if dt <= 0:
+            return self.pos
+
         target = pygame.Vector2(target_pos)
         direction = target - self.pos
         dist = direction.length()
-        if dist == 0:
+
+        # 너무 가까우면(사실상 같은 위치) 그냥 위치를 맞추고 끝낸다
+        if dist < 1e-6:
+            self.pos = target
             return self.pos
 
         # 질량이 클수록 느리게(가속도 작게) 따라감
@@ -185,8 +192,10 @@ class SwordController:
         step = stiffness * dt * dist
 
         if step >= dist:
+            # 한 번에 도달
             self.pos = target
         else:
+            # dist는 0이 아님이 위에서 보장됨
             direction.scale_to_length(step)
             self.pos += direction
 
