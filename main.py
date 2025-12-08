@@ -142,6 +142,33 @@ def draw_settings_overlay(
         y += surf.get_height() + 2
 
 
+def draw_start_tip_overlay(screen, font):
+    """처음 실행 시 한 번만 보여줄 시작 안내 오버레이."""
+    # 전체 화면 반투명 어둡게
+    overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))
+    screen.blit(overlay, (0, 0))
+
+    lines = [
+        "I 키를 눌러 설명을 확인하세요.",
+        "아무 키나 누르면 게임이 시작됩니다.",
+    ]
+
+    # 중앙 정렬
+    total_height = 0
+    rendered = []
+    for t in lines:
+        surf = font.render(t, True, HUD_TEXT_COLOR)
+        rendered.append(surf)
+        total_height += surf.get_height() + 10
+
+    start_y = (WINDOW_HEIGHT - total_height) // 2
+    for surf in rendered:
+        x = (WINDOW_WIDTH - surf.get_width()) // 2
+        screen.blit(surf, (x, start_y))
+        start_y += surf.get_height() + 10
+
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -189,6 +216,9 @@ def main():
     settings_input_mode = False
     settings_input_value = ""
 
+    # --- 새로 추가: 시작 안내 오버레이 상태 ---
+    show_start_tip = True  # True일 때만 "I키를 눌러..." 문구와 일시정지
+
     running = True
     while running:
         dt = clock.tick(FPS) / 1000.0
@@ -199,11 +229,22 @@ def main():
                 running = False
 
             if event.type == pygame.KEYDOWN:
-                # 공통 키
+                # ESC는 언제나 종료
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                    continue
 
-                elif event.key == pygame.K_r:
+                # 시작 안내가 떠 있을 때: 첫 키 입력으로 시작
+                if show_start_tip:
+                    show_start_tip = False
+                    # 만약 첫 키가 I라면, 바로 설명창도 열어줌
+                    if event.key == pygame.K_i:
+                        show_info = True
+                    # 시작 안내 상태에서는 다른 키 처리는 하지 않고 다음 이벤트로
+                    continue
+
+                # 여기부터는 실제 게임 진행 중일 때의 키 처리
+                if event.key == pygame.K_r:
                     scarecrow.reset()
                     last_slash_energy = 0.0
                     last_required_energy = 0.0
@@ -251,7 +292,7 @@ def main():
                         settings_input_value = ""
 
                     elif event.key == pygame.K_ESCAPE:
-                        # 입력 취소
+                        # 입력 취소 (게임 전체 종료는 위에서 이미 처리)
                         settings_input_mode = False
                         settings_input_value = ""
 
@@ -303,8 +344,9 @@ def main():
                             current = energy_per_len
                         settings_input_value = f"{current:.3f}"
 
-            # 설정창이 켜져 있을 때는 새 슬래시를 시작하지 않는다
-            if not show_settings:
+            # 마우스 이벤트 처리
+            # 설정창이 켜져 있거나 시작 안내가 떠 있을 때는 새 슬래시를 시작하지 않는다
+            if (not show_start_tip) and (not show_settings):
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button in (1, 3):
                     if not attack_buttons_down:
                         # 새로운 슬래시 시작
@@ -393,6 +435,10 @@ def main():
                 settings_input_mode,
                 settings_input_value,
             )
+
+        # 시작 안내는 가장 위에 덮어서, 게임이 일시정지된 느낌을 줌
+        if show_start_tip:
+            draw_start_tip_overlay(screen, font)
 
         pygame.display.flip()
 
