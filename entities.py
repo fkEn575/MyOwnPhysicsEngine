@@ -6,12 +6,16 @@ from config import (
 )
 from physics import distance
 
+
 class Scarecrow:
     def __init__(self):
+        # 기본 허수아비 몸통
         self.base_rect = pygame.Rect(SCARECROW_RECT)
         self.cuts = []  # 각 cut: {"points": [...], "depth": "shallow/medium/deep"}
 
     def reset(self):
+        # 허수아비를 완전히 원상복구
+        self.base_rect = pygame.Rect(SCARECROW_RECT)
         self.cuts.clear()
 
     def apply_slash(self, points, depth):
@@ -24,14 +28,19 @@ class Scarecrow:
         if len(points) < 2:
             return
 
-        # 허수아비 rect 안을 지나갔는지 간단 검증
+        # 현재 남아있는 허수아비 몸통에 닿았는지 확인
         if not self._path_intersects_rect(points, self.base_rect):
             return
 
-        self.cuts.append({
-            "points": list(points),
-            "depth": depth
-        })
+        # deep 이면서, 허수아비를 가로질러 "전부" 베었는지 체크
+        if depth == "deep" and self._is_full_cut(points, self.base_rect):
+            self._apply_full_cut(points, depth)
+        else:
+            # 전부 베지 못했으면 그냥 자국만 남긴다
+            self.cuts.append({
+                "points": list(points),
+                "depth": depth
+            })
 
     def _path_intersects_rect(self, points, rect):
         """아주 단순하게: 경로 중 하나라도 rect 안에 들어오면 통과했다고 판단."""
@@ -40,7 +49,74 @@ class Scarecrow:
                 return True
         return False
 
+    def _is_full_cut(self, points, rect):
+        """
+        '전부 베임' 판정:
+        - rect 안에 들어온 점들 중 x 최소/최대가
+          허수아비 왼쪽~오른쪽을 거의 다 덮으면 "가로로 전부 베었다"고 본다.
+        """
+        inside = [(x, y) for (x, y) in points if rect.collidepoint(x, y)]
+        if not inside:
+            return False
+
+        xs = [p[0] for p in inside]
+        min_x = min(xs)
+        max_x = max(xs)
+
+        margin = 5  # 양 끝에서 이 정도는 여유 허용
+        covers_left = min_x <= rect.left + margin
+        covers_right = max_x >= rect.right - margin
+
+        return covers_left and covers_right
+
+    def _apply_full_cut(self, points, depth):
+        """
+        전부 베인 경우:
+        - 허수아비 위쪽이 잘려 나가고
+        - 잘린 높이 기준으로 남은 아래쪽만 남긴다.
+        """
+        rect = self.base_rect
+
+        # rect 안에 있는 점들의 y 평균을 "절단 높이"로 사용 (단순화)
+        inside = [(x, y) for (x, y) in points if rect.collidepoint(x, y)]
+        ys = [p[1] for p in inside]
+        if not ys:
+            # 혹시라도 안전장치: inside 가 없다면 그냥 일반 cut 로 처리
+            self.cuts.append({
+                "points": list(points),
+                "depth": depth
+            })
+            return
+
+        cut_y = int(sum(ys) / len(ys))  # 절단선 높이
+
+        bottom = rect.bottom
+        # cut_y 아래만 남기고 위는 잘려 나간 것으로 처리
+        if cut_y >= bottom:
+            # 거의 바닥을 자른 경우: 몸통이 사실상 사라졌다고 보고 높이 0
+            rect.height = 0
+        else:
+            rect.height = bottom - cut_y
+            rect.top = cut_y
+
+        # 기존 자국들 중에서, 이제 남은 몸통(rect)에 걸리는 것만 유지
+        self.cuts = [
+            c for c in self.cuts
+            if self._path_intersects_rect(c["points"], self.base_rect)
+        ]
+
+        # 방금 deep 컷도 남은 몸통에 걸쳐 있으면 자국으로 추가
+        if self._path_intersects_rect(points, self.base_rect):
+            self.cuts.append({
+                "points": list(points),
+                "depth": depth
+            })
+
     def draw(self, surface):
+        # 몸통이 남아있지 않으면 아무것도 그리지 않음
+        if self.base_rect.height <= 0:
+            return
+
         # 몸통
         pygame.draw.rect(surface, SCARECROW_COLOR, self.base_rect)
         pygame.draw.rect(surface, SCARECROW_OUTLINE, self.base_rect, 2)
