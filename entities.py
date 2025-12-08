@@ -116,7 +116,7 @@ class SwordController:
             pygame.draw.circle(
                 surface, (255, 255, 255), (int(tip.x), int(tip.y)), 4
             )
-            
+
 
 class Scarecrow:
     """
@@ -314,15 +314,21 @@ class Scarecrow:
             (rect.right, rect.bottom),
         ]
 
-        # 경로를 뒤에서부터 추가하면, 아래쪽 영역(바닥 → 오른쪽 → 경로 → 왼쪽 → 바닥)이 됨
-        for p in reversed(inside_path):
+        # 경로 진행 방향에 따라 오른쪽→왼쪽 순서가 되도록 맞춰주기
+        # inside_path[0].x < inside_path[-1].x 이면 "왼→오" 이므로 reversed 사용
+        if inside_path[0][0] <= inside_path[-1][0]:
+            path_points = reversed(inside_path)  # 왼→오였던 경로를 오→왼으로 뒤집기
+        else:
+            path_points = inside_path           # 이미 오→왼이면 그대로 사용
+
+        for p in path_points:
             if body_poly and abs(body_poly[-1][0] - p[0]) < 1e-3 and abs(
                 body_poly[-1][1] - p[1]
             ) < 1e-3:
                 continue
             body_poly.append(p)
 
-        # base_rect도 남은 폴리곤의 바운딩 박스로 축소 (충돌/클리핑용)
+        # 나머지 bounding box 계산 부분은 그대로
         px = [p[0] for p in body_poly]
         py = [p[1] for p in body_poly]
         min_px, max_px = min(px), max(px)
