@@ -40,7 +40,7 @@ def draw_hud(
         f"마지막 베기 에너지(마우스 기준): {last_slash_energy:.2f}",
         f"완전 절단 필요 에너지(해당 경로 기준): {last_required_energy:.2f}",
         f"이번 베기 강도: {last_cut_ratio * 100.0:.1f} %",
-        "좌/우 클릭: 베기, R: 허수아비 리셋, I: 정보창, O: 설정창",
+        "좌/우 클릭: 베기, R: 허수아비 리셋, I: 설명창, O: 설정창",
     ]
     y = 10
     for text in lines:
@@ -99,6 +99,8 @@ def draw_settings_overlay(
     mouse_mass,
     e_init,
     energy_per_len,
+    input_mode,
+    input_value,
 ):
     """O 키로 토글되는 설정창 (이 창이 켜져 있을 때는 게임이 멈춤)."""
     settings_lines = [
@@ -109,10 +111,13 @@ def draw_settings_overlay(
         f"3. 표면 강도(문턱 에너지): {e_init:.2f}",
         f"4. 절단 저항(단위 길이당 에너지): {energy_per_len:.3f}",
         "",
-        "↑ / ↓ : 항목 선택",
-        "← / → : 값 조절",
-        "O 키: 설정창 닫기",
+        "↑ / ↓ : 항목 선택   ← / → : 값 조절",
     ]
+
+    if input_mode:
+        settings_lines.append("입력 중: Enter=확정, Esc=취소, Backspace=지우기")
+    else:
+        settings_lines.append("Enter: 직접 값 입력   O: 설정창 닫기")
 
     overlay = pygame.Surface((WINDOW_WIDTH - 40, 260), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 200))
@@ -125,6 +130,10 @@ def draw_settings_overlay(
             idx = i - 2
             prefix = "> " if idx == selected_index else "  "
             text = prefix + line
+
+            # 직접 입력 모드일 때, 선택된 항목 옆에 입력 중인 값 표시
+            if input_mode and idx == selected_index:
+                text += f"  [입력: {input_value}_]"
         else:
             text = line
 
@@ -176,6 +185,10 @@ def main():
     # 0: sword_mass, 1: mouse_mass, 2: e_init, 3: energy_per_len
     settings_index = 0
 
+    # 설정값 직접 입력 모드 상태
+    settings_input_mode = False
+    settings_input_value = ""
+
     running = True
     while running:
         dt = clock.tick(FPS) / 1000.0
@@ -186,17 +199,23 @@ def main():
                 running = False
 
             if event.type == pygame.KEYDOWN:
+                # 공통 키
                 if event.key == pygame.K_ESCAPE:
                     running = False
+
                 elif event.key == pygame.K_r:
                     scarecrow.reset()
                     last_slash_energy = 0.0
                     last_required_energy = 0.0
                     last_cut_ratio = 0.0
+
                 elif event.key == pygame.K_i:
                     show_info = not show_info
                     if show_info:
                         show_settings = False
+                        settings_input_mode = False
+                        settings_input_value = ""
+
                 elif event.key == pygame.K_o:
                     show_settings = not show_settings
                     if show_settings:
@@ -204,8 +223,48 @@ def main():
                         # 설정창을 여는 순간 진행 중인 슬래시는 취소
                         slash_recording = False
                         attack_buttons_down.clear()
-                # 설정창이 켜져 있을 때의 키 입력 (파라미터 조정)
+                    else:
+                        settings_input_mode = False
+                        settings_input_value = ""
+
+                # 설정창이 켜져 있을 때의 키 입력
+                elif show_settings and settings_input_mode:
+                    # 숫자 직접 입력 모드
+                    if event.key == pygame.K_RETURN:
+                        # 입력 확정
+                        if settings_input_value.strip() != "":
+                            try:
+                                v = float(settings_input_value)
+                                if settings_index == 0:
+                                    sword_mass = clamp(v, 0.5, 4.0)
+                                    sword.set_mass(sword_mass)
+                                elif settings_index == 1:
+                                    mouse_mass = clamp(v, 0.1, 5.0)
+                                elif settings_index == 2:
+                                    e_init = max(0.0, v)
+                                elif settings_index == 3:
+                                    energy_per_len = max(0.0, v)
+                            except ValueError:
+                                # 잘못된 숫자는 무시하고 원래 값 유지
+                                pass
+                        settings_input_mode = False
+                        settings_input_value = ""
+
+                    elif event.key == pygame.K_ESCAPE:
+                        # 입력 취소
+                        settings_input_mode = False
+                        settings_input_value = ""
+
+                    elif event.key == pygame.K_BACKSPACE:
+                        settings_input_value = settings_input_value[:-1]
+
+                    else:
+                        # 숫자/소수점/음수 기호 입력 허용
+                        if event.unicode in "0123456789.-":
+                            settings_input_value += event.unicode
+
                 elif show_settings:
+                    # 일반 설정 조정 모드
                     if event.key == pygame.K_UP:
                         settings_index = (settings_index - 1) % 4
                     elif event.key == pygame.K_DOWN:
@@ -230,6 +289,19 @@ def main():
                             e_init = e_init + 0.5
                         elif settings_index == 3:
                             energy_per_len = energy_per_len + 0.005
+                    elif event.key == pygame.K_RETURN:
+                        # 선택된 항목 직접 입력 모드로 전환
+                        settings_input_mode = True
+                        # 현재 값을 기본값으로 채워 넣기
+                        if settings_index == 0:
+                            current = sword_mass
+                        elif settings_index == 1:
+                            current = mouse_mass
+                        elif settings_index == 2:
+                            current = e_init
+                        else:
+                            current = energy_per_len
+                        settings_input_value = f"{current:.3f}"
 
             # 설정창이 켜져 있을 때는 새 슬래시를 시작하지 않는다
             if not show_settings:
@@ -318,6 +390,8 @@ def main():
                 mouse_mass,
                 e_init,
                 energy_per_len,
+                settings_input_mode,
+                settings_input_value,
             )
 
         pygame.display.flip()
