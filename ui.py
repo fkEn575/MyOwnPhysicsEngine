@@ -147,11 +147,11 @@ def draw_info_overlay(screen, font, scroll_offset):
     max_overlay_height = WINDOW_HEIGHT - 80
     overlay_height = min(overlay_height, max_overlay_height)
 
+    # 1) overlay Surface 안에 글씨를 모두 그린 다음
     overlay = pygame.Surface((WINDOW_WIDTH - 40, overlay_height), pygame.SRCALPHA)
     overlay.fill((*INFO_BG_COLOR, INFO_BG_ALPHA))
-    screen.blit(overlay, (20, 60))
 
-    y = 60 + padding_top_bottom + scroll_offset
+    y = padding_top_bottom + scroll_offset  # overlay 내부 좌표
     for line in info_lines:
         # [섹션 제목] 라인은 볼드 처리
         if line.startswith("[") and line.endswith("]"):
@@ -160,10 +160,14 @@ def draw_info_overlay(screen, font, scroll_offset):
             font.set_bold(False)
 
         surf = font.render(line, True, HUD_TEXT_COLOR)
-        screen.blit(surf, (30, y))
+        # overlay 기준으로 blit
+        overlay.blit(surf, (10, y))
         y += surf.get_height() + 2
 
     font.set_bold(False)
+
+    # 2) 완성된 overlay를 화면에 한 번만 blit
+    screen.blit(overlay, (20, 60))
 
 
 # ---------- 설정창 ----------
@@ -204,11 +208,11 @@ def draw_settings_overlay(
     max_overlay_height = WINDOW_HEIGHT - 80
     overlay_height = min(overlay_height, max_overlay_height)
 
+    # 1) overlay를 만든 뒤 그 위에 텍스트를 모두 그림
     overlay = pygame.Surface((WINDOW_WIDTH - 40, overlay_height), pygame.SRCALPHA)
     overlay.fill((*INFO_BG_COLOR, INFO_BG_ALPHA))
-    screen.blit(overlay, (20, 60))
 
-    y = 60 + padding_top_bottom
+    y = padding_top_bottom
     for i, line in enumerate(settings_lines):
         if 2 <= i <= 5:
             idx = i - 2
@@ -227,7 +231,10 @@ def draw_settings_overlay(
             font.set_bold(False)
 
         surf = font.render(text, True, HUD_TEXT_COLOR)
-        screen.blit(surf, (30, y))
+        overlay.blit(surf, (10, y))
         y += surf.get_height() + 2
 
     font.set_bold(False)
+
+    # 2) 완성된 overlay를 화면에 한 번 blit
+    screen.blit(overlay, (20, 60))
