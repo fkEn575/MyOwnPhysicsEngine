@@ -1,5 +1,6 @@
 
 import pygame
+import math
 
 from config import (
     SCARECROW_RECT,
@@ -18,11 +19,12 @@ class SwordController:
     질량에 따라 느리게 따라가는 '검 팁 위치'를 관리하는 컨트롤러.
     """
 
-    def __init__(self, mass, start_pos):
+    def __init__(self, mass, start_pos, image=None):
         self.mass = mass
         self.pos = pygame.Vector2(start_pos)
         self.prev_pos = pygame.Vector2(start_pos)
         self.control_multiplier = 1.0  # 설정창에서 조절 가능한 컨트롤 민감도
+        self.image = image  # 검 이미지를 넣어둘 곳
 
     def set_mass(self, mass):
         self.mass = mass
@@ -73,39 +75,48 @@ class SwordController:
         if direction.length_squared() < 1e-4:
             direction = pygame.Vector2(1, 0)
 
-        blade_length = 40
-        direction = direction.normalize() * blade_length
+        # 이미지가 있으면 이미지로, 없으면 기존 라인 방식으로
+        if self.image is not None:
+            # 방향 벡터로 회전 각도 계산 (라디안 → 도)
+            angle = -math.degrees(math.atan2(direction.y, direction.x))
+            rotated = pygame.transform.rotate(self.image, angle)
+            rect = rotated.get_rect(center=(int(tip.x), int(tip.y)))
+            surface.blit(rotated, rect)
+        else:
+            # --- 기존 라인 검 그리기 (백업용) ---
+            blade_length = 40
+            direction = direction.normalize() * blade_length
 
-        hilt_base = tip - direction
+            hilt_base = tip - direction
 
-        # 칼날
-        pygame.draw.line(
-            surface,
-            (230, 230, 255),
-            (int(hilt_base.x), int(hilt_base.y)),
-            (int(tip.x), int(tip.y)),
-            3,
-        )
+            # 칼날
+            pygame.draw.line(
+                surface,
+                (230, 230, 255),
+                (int(hilt_base.x), int(hilt_base.y)),
+                (int(tip.x), int(tip.y)),
+                3,
+            )
 
-        # 손잡이(십자 가드) 표현
-        guard = pygame.Vector2(-direction.y, direction.x)
-        guard.scale_to_length(6)
-        guard_left = tip - guard
-        guard_right = tip + guard
+            # 손잡이(십자 가드) 표현
+            guard = pygame.Vector2(-direction.y, direction.x)
+            guard.scale_to_length(6)
+            guard_left = tip - guard
+            guard_right = tip + guard
 
-        pygame.draw.line(
-            surface,
-            (230, 230, 255),
-            (int(guard_left.x), int(guard_left.y)),
-            (int(guard_right.x), int(guard_right.y)),
-            2,
-        )
+            pygame.draw.line(
+                surface,
+                (230, 230, 255),
+                (int(guard_left.x), int(guard_left.y)),
+                (int(guard_right.x), int(guard_right.y)),
+                2,
+            )
 
-        # 검 끝 강조
-        pygame.draw.circle(
-            surface, (255, 255, 255), (int(tip.x), int(tip.y)), 4
-        )
-
+            # 검 끝 강조
+            pygame.draw.circle(
+                surface, (255, 255, 255), (int(tip.x), int(tip.y)), 4
+            )
+            
 
 class Scarecrow:
     """

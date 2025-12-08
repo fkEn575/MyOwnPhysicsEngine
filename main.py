@@ -31,6 +31,11 @@ def main():
     # 시스템 마우스 커서 숨기고, 우리가 그리는 검 모양만 보이게
     pygame.mouse.set_visible(False)
 
+    # --- 검 이미지 로드 ---
+    sword_image = pygame.image.load("sword.png").convert_alpha()
+    # 필요하면 크기 살짝 조정 (너무 크면 줄이기)
+    sword_image = pygame.transform.smoothscale(sword_image, (64, 64))
+
     scarecrow = Scarecrow()
 
     start_pos = (WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 100)
@@ -39,7 +44,7 @@ def main():
     sword_mass = 1.5       # 기본 롱소드 질량
     mouse_mass = 0.5       # 기본 마우스(손) 질량, 적당히 가정
 
-    sword = SwordController(sword_mass, start_pos)
+    sword = SwordController(sword_mass, start_pos, sword_image)
 
     # 절단 에너지 파라미터 (설정창에서 조절 가능)
     e_init = E_INIT_DEFAULT
