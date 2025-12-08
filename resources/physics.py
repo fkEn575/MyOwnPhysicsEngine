@@ -1,6 +1,6 @@
 
 import math
-from config import PIXELS_PER_METER
+from .config import PIXELS_PER_METER
 
 
 def distance(p1, p2):
