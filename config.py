@@ -8,6 +8,12 @@ SWORD_BASE_MASS = 1.5  # kg, 기본 롱소드 질량
 SWORD_MIN_MASS = 0.5
 SWORD_MAX_MASS = 4.0
 
+# '빠르게 휘두름'으로 인식할 최소 속도 (픽셀/초)
+SLASH_SPEED_THRESHOLD = 600.0
+
+# 검 컨트롤러 기본 강성 (기본 질량일 때 기준)
+SWORD_STIFFNESS_BASE = 20.0
+
 # 허수아비(밀짚) 잘리는 임계값들 (임팩트 값 기준)
 # 값은 게임 밸런스용이라 자유롭게 조정하면 됩니다.
 CUT_THRESHOLDS = {
