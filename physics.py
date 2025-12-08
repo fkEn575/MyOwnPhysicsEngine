@@ -1,11 +1,14 @@
 
 import math
-from config import CUT_THRESHOLDS
+from config import PIXELS_PER_METER
+
 
 def distance(p1, p2):
+    """두 점 사이의 유클리드 거리."""
     dx = p2[0] - p1[0]
     dy = p2[1] - p1[1]
     return math.hypot(dx, dy)
+
 
 def compute_speed(prev_pos, curr_pos, dt):
     """픽셀/초 단위 속도 계산."""
@@ -14,24 +17,21 @@ def compute_speed(prev_pos, curr_pos, dt):
     d = distance(prev_pos, curr_pos)
     return d / dt
 
-def compute_impact(mass, speed):
-    """
-    아주 단순화된 '임팩트' 값.
-    실제 물리 공식(1/2 m v^2)의 스케일을 줄이기 위해 속도 스케일링을 약간 적용.
-    """
-    speed_scale = 0.02  # 숫자 튜닝용
-    v = speed * speed_scale
-    return 0.5 * mass * (v ** 2)
 
-def classify_cut(impact_value):
+def kinetic_energy(mass, speed_pixels_per_sec):
     """
-    임팩트에 따라 베임 정도를 분류.
+    검의 운동에너지 (대략 J 단위).
+    speed_pixels_per_sec: 화면 상의 속도 (px/s)
     """
-    if impact_value < CUT_THRESHOLDS["no_cut"]:
-        return "none"
-    elif impact_value < CUT_THRESHOLDS["shallow"]:
-        return "shallow"
-    elif impact_value < CUT_THRESHOLDS["medium"]:
-        return "medium"
-    else:
-        return "deep"
+    v_m_s = speed_pixels_per_sec / PIXELS_PER_METER
+    return 0.5 * mass * v_m_s * v_m_s
+
+
+def polyline_length(points):
+    """연속된 점들로 이루어진 경로의 총 길이."""
+    if len(points) < 2:
+        return 0.0
+    total = 0.0
+    for i in range(len(points) - 1):
+        total += distance(points[i], points[i + 1])
+    return total
