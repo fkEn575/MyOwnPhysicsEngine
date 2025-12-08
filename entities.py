@@ -2,7 +2,8 @@
 import pygame
 from config import (
     SCARECROW_RECT, SCARECROW_COLOR, SCARECROW_OUTLINE,
-    SLASH_COLOR, SLASH_SHALLOW_WIDTH, SLASH_MEDIUM_WIDTH, SLASH_DEEP_WIDTH
+    SLASH_COLOR, SLASH_SHALLOW_WIDTH, SLASH_MEDIUM_WIDTH, SLASH_DEEP_WIDTH,
+    SWORD_BASE_MASS, SWORD_STIFFNESS_BASE,
 )
 from physics import distance
 
@@ -121,11 +122,20 @@ class Scarecrow:
         pygame.draw.rect(surface, SCARECROW_COLOR, self.base_rect)
         pygame.draw.rect(surface, SCARECROW_OUTLINE, self.base_rect, 2)
 
-        # 잘린 자국들
+        # 잘린 자국들 - 허수아비 안쪽에 있는 부분만 그리기
         for cut in self.cuts:
             pts = cut["points"]
             if len(pts) < 2:
                 continue
+
+            # 허수아비 사각형 안에 들어오는 점만 골라서 그림
+            inside_pts = [
+                (x, y) for (x, y) in pts
+                if self.base_rect.collidepoint(x, y)
+            ]
+            if len(inside_pts) < 2:
+                continue
+
             depth = cut["depth"]
             if depth == "shallow":
                 width = SLASH_SHALLOW_WIDTH
@@ -133,7 +143,8 @@ class Scarecrow:
                 width = SLASH_MEDIUM_WIDTH
             else:
                 width = SLASH_DEEP_WIDTH
-            pygame.draw.lines(surface, SLASH_COLOR, False, pts, width)
+
+            pygame.draw.lines(surface, SLASH_COLOR, False, inside_pts, width)
 
 
 class SwordTrail:
@@ -165,6 +176,7 @@ class SwordController:
     def __init__(self, mass, start_pos):
         self.mass = mass
         self.pos = pygame.Vector2(start_pos)
+        self.prev_pos = pygame.Vector2(start_pos)  # 이전 프레임 위치 (검 방향 계산용)
 
     def set_mass(self, mass):
         self.mass = mass
@@ -174,7 +186,6 @@ class SwordController:
         target_pos: 실제 마우스 위치
         dt: 프레임 간 시간(초)
         """
-        # dt가 0이면 움직임 계산 안 함 (속도 계산에서도 비슷한 방어가 있음)
         if dt <= 0:
             return self.pos
 
@@ -182,25 +193,67 @@ class SwordController:
         direction = target - self.pos
         dist = direction.length()
 
-        # 너무 가까우면(사실상 같은 위치) 그냥 위치를 맞추고 끝낸다
+        # 그리기용으로 현재 위치를 이전 위치로 저장
+        self.prev_pos = self.pos.copy()
+
+        # 너무 가까우면 그냥 위치를 맞추고 끝
         if dist < 1e-6:
             self.pos = target
             return self.pos
 
-        # 질량이 클수록 느리게(가속도 작게) 따라감
-        stiffness = 30.0 / max(self.mass, 0.1)  # mass 커질수록 값 감소
+        # 기본 질량(SWORD_BASE_MASS) 기준으로, 무게 차이에 따라 따라가는 속도 조절
+        # (검이 무거울수록 mass_ratio < 1 → stiffness 작아짐 → 더 둔하게 움직임)
+        mass_ratio = SWORD_BASE_MASS / max(self.mass, 0.1)
+        stiffness = SWORD_STIFFNESS_BASE * mass_ratio
+
         step = stiffness * dt * dist
 
         if step >= dist:
-            # 한 번에 도달
             self.pos = target
         else:
-            # dist는 0이 아님이 위에서 보장됨
             direction.scale_to_length(step)
             self.pos += direction
 
         return self.pos
 
     def draw(self, surface):
-        # 검 팁을 작은 원으로 표현
-        pygame.draw.circle(surface, (200, 200, 255), (int(self.pos.x), int(self.pos.y)), 5)
+        # 검 팁
+        tip = pygame.Vector2(self.pos)
+
+        # 이전 프레임 위치와의 차이를 이용해 검의 방향 계산
+        direction = tip - self.prev_pos
+        if direction.length_squared() < 1e-4:
+            direction = pygame.Vector2(1, 0)  # 거의 안 움직이면 오른쪽을 향하도록
+
+        # 칼날 길이
+        blade_length = 40
+        direction.scale_to_length(blade_length)
+
+        # 손잡이 쪽 (검 끝에서 반대 방향으로)
+        hilt_base = tip - direction
+
+        # 칼날 그리기
+        pygame.draw.line(
+            surface,
+            (230, 230, 255),
+            (int(hilt_base.x), int(hilt_base.y)),
+            (int(tip.x), int(tip.y)),
+            3,
+        )
+
+        # 손잡이(십자 가드) 표현
+        guard = pygame.Vector2(-direction.y, direction.x)
+        guard.scale_to_length(6)
+        guard_left = tip - guard
+        guard_right = tip + guard
+
+        pygame.draw.line(
+            surface,
+            (230, 230, 255),
+            (int(guard_left.x), int(guard_left.y)),
+            (int(guard_right.x), int(guard_right.y)),
+            2,
+        )
+
+        # 검 끝을 약간 강조
+        pygame.draw.circle(surface, (255, 255, 255), (int(tip.x), int(tip.y)), 4)

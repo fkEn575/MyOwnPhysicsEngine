@@ -4,7 +4,7 @@ from config import (
     WINDOW_WIDTH, WINDOW_HEIGHT, FPS,
     BACKGROUND_COLOR, HUD_TEXT_COLOR,
     SWORD_BASE_MASS, SWORD_MIN_MASS, SWORD_MAX_MASS,
-    SLASH_SPEED_THRESHOLD, SWORD_STIFFNESS_BASE,
+    SLASH_SPEED_THRESHOLD,
 )
 from physics import compute_speed, compute_impact, classify_cut
 from entities import Scarecrow, SwordTrail, SwordController
