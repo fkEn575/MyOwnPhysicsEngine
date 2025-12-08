@@ -35,7 +35,8 @@ def draw_hud(
     last_cut_ratio,
 ):
     lines = [
-        f"검 무게: {sword_mass:.2f} kg   ([ / ] 키로 변경)",
+        # [] 키 안내 삭제, 설정창에서 변경하도록 안내
+        f"검 무게: {sword_mass:.2f} kg   (O 키 설정창에서 변경)",
         f"마지막 베기 에너지: {last_slash_energy:.2f}",
         f"완전 절단 필요 에너지(해당 경로 기준): {last_required_energy:.2f}",
         f"이번 베기 강도: {last_cut_ratio * 100.0:.1f} %",
@@ -185,43 +186,34 @@ def main():
                         # 설정창을 여는 순간 진행 중인 슬래시는 취소
                         slash_recording = False
                         attack_buttons_down.clear()
-                else:
-                    # 설정창이 켜져 있을 때의 키 입력 (파라미터 조정)
-                    if show_settings:
-                        if event.key == pygame.K_UP:
-                            settings_index = (settings_index - 1) % 4
-                        elif event.key == pygame.K_DOWN:
-                            settings_index = (settings_index + 1) % 4
-                        elif event.key == pygame.K_LEFT:
-                            if settings_index == 0:
-                                sword_mass = clamp(sword_mass - 0.1, 0.5, 4.0)
-                                sword.set_mass(sword_mass)
-                            elif settings_index == 1:
-                                e_init = max(0.0, e_init - 0.5)
-                            elif settings_index == 2:
-                                energy_per_len = max(0.0, energy_per_len - 0.005)
-                            elif settings_index == 3:
-                                control_mult = max(0.1, control_mult - 0.1)
-                                sword.set_control_multiplier(control_mult)
-                        elif event.key == pygame.K_RIGHT:
-                            if settings_index == 0:
-                                sword_mass = clamp(sword_mass + 0.1, 0.5, 4.0)
-                                sword.set_mass(sword_mass)
-                            elif settings_index == 1:
-                                e_init = e_init + 0.5
-                            elif settings_index == 2:
-                                energy_per_len = energy_per_len + 0.005
-                            elif settings_index == 3:
-                                control_mult = control_mult + 0.1
-                                sword.set_control_multiplier(control_mult)
-                    else:
-                        # 설정창이 꺼져 있을 때만 무게를 직접 조절
-                        if event.key == pygame.K_LEFTBRACKET:  # '['
-                            sword_mass = clamp(sword_mass - 0.25, 0.5, 4.0)
+                # 설정창이 켜져 있을 때의 키 입력 (파라미터 조정)
+                elif show_settings:
+                    if event.key == pygame.K_UP:
+                        settings_index = (settings_index - 1) % 4
+                    elif event.key == pygame.K_DOWN:
+                        settings_index = (settings_index + 1) % 4
+                    elif event.key == pygame.K_LEFT:
+                        if settings_index == 0:
+                            sword_mass = clamp(sword_mass - 0.1, 0.5, 4.0)
                             sword.set_mass(sword_mass)
-                        elif event.key == pygame.K_RIGHTBRACKET:  # ']'
-                            sword_mass = clamp(sword_mass + 0.25, 0.5, 4.0)
+                        elif settings_index == 1:
+                            e_init = max(0.0, e_init - 0.5)
+                        elif settings_index == 2:
+                            energy_per_len = max(0.0, energy_per_len - 0.005)
+                        elif settings_index == 3:
+                            control_mult = max(0.1, control_mult - 0.1)
+                            sword.set_control_multiplier(control_mult)
+                    elif event.key == pygame.K_RIGHT:
+                        if settings_index == 0:
+                            sword_mass = clamp(sword_mass + 0.1, 0.5, 4.0)
                             sword.set_mass(sword_mass)
+                        elif settings_index == 1:
+                            e_init = e_init + 0.5
+                        elif settings_index == 2:
+                            energy_per_len = energy_per_len + 0.005
+                        elif settings_index == 3:
+                            control_mult = control_mult + 0.1
+                            sword.set_control_multiplier(control_mult)
 
             # 설정창이 켜져 있을 때는 새 슬래시를 시작하지 않는다
             if not show_settings:
