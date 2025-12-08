@@ -19,6 +19,94 @@ class Scarecrow:
         self.base_rect = pygame.Rect(SCARECROW_RECT)
         self.cuts.clear()
 
+    def _clip_points_to_rect(self, points, rect):
+        """
+        points 경로에서 rect(허수아비 몸통)과 겹치는 구간만 잘라낸다.
+        - 처음 rect에 '들어오는' 지점부터
+        - 마지막으로 rect를 '빠져나가는' 지점까지
+        를 포함하는 새 리스트를 반환.
+        """
+        if len(points) < 2:
+            return []
+
+        # 현재 rect 안에 있는 점들의 인덱스를 찾는다.
+        inside_indices = [
+            i for i, (x, y) in enumerate(points)
+            if rect.collidepoint(x, y)
+        ]
+        if not inside_indices:
+            return []  # 아예 안 닿음
+
+        first_i = inside_indices[0]
+        last_i = inside_indices[-1]
+
+        def interpolate_entry(p_out, p_in):
+            # p_out(밖) -> p_in(안) 방향으로 이분 탐색하며
+            # rect 안으로 처음 들어오는 점을 찾는다.
+            ax, ay = p_out
+            bx, by = p_in
+            left, right = 0.0, 1.0
+            for _ in range(8):  # 반복 횟수 늘리면 더 정밀
+                mid = (left + right) / 2.0
+                mx = ax + (bx - ax) * mid
+                my = ay + (by - ay) * mid
+                if rect.collidepoint(mx, my):
+                    right = mid
+                else:
+                    left = mid
+            mx = ax + (bx - ax) * right
+            my = ay + (by - ay) * right
+            return (mx, my)
+
+        def interpolate_exit(p_in, p_out):
+            # p_in(안) -> p_out(밖) 방향으로 이분 탐색하며
+            # rect를 마지막으로 떠나는 점을 찾는다.
+            ax, ay = p_in
+            bx, by = p_out
+            left, right = 0.0, 1.0
+            for _ in range(8):
+                mid = (left + right) / 2.0
+                mx = ax + (bx - ax) * mid
+                my = ay + (by - ay) * mid
+                if rect.collidepoint(mx, my):
+                    left = mid
+                else:
+                    right = mid
+            mx = ax + (bx - ax) * left
+            my = ay + (by - ay) * left
+            return (mx, my)
+
+        clipped = []
+
+        # 시작점: rect 밖에서 안으로 들어온 경우, 경계 지점을 보간
+        if first_i == 0:
+            clipped.append(points[first_i])
+        else:
+            p_out = points[first_i - 1]
+            p_in = points[first_i]
+            start = interpolate_entry(p_out, p_in)
+            clipped.append(start)
+
+        # 중간에 rect 안에 있는 원래 점들 추가
+        for i in range(first_i, last_i + 1):
+            x, y = points[i]
+            if rect.collidepoint(x, y):
+                clipped.append(points[i])
+
+        # 끝점: rect 안에서 밖으로 나간 경우, 경계 지점을 보간
+        if last_i == len(points) - 1:
+            end = points[last_i]
+            if end != clipped[-1]:
+                clipped.append(end)
+        else:
+            p_in = points[last_i]
+            p_out = points[last_i + 1]
+            end = interpolate_exit(p_in, p_out)
+            if end != clipped[-1]:
+                clipped.append(end)
+
+        return clipped
+
     def apply_slash(self, points, depth):
         """
         slash 경로(points)가 허수아비와 겹치면 커트로 등록.
@@ -33,15 +121,16 @@ class Scarecrow:
         if not self._path_intersects_rect(points, self.base_rect):
             return
 
-        # deep 이면서, 허수아비를 가로질러 "전부" 베었는지 체크
         if depth == "deep" and self._is_full_cut(points, self.base_rect):
             self._apply_full_cut(points, depth)
         else:
-            # 전부 베지 못했으면 그냥 자국만 남긴다
-            self.cuts.append({
-                "points": list(points),
-                "depth": depth
-            })
+            # 허수아비와 겹치는 구간만 잘라서 자국으로 남김
+            clipped = self._clip_points_to_rect(points, self.base_rect)
+            if len(clipped) >= 2:
+                self.cuts.append({
+                    "points": clipped,
+                    "depth": depth
+                })
 
     def _path_intersects_rect(self, points, rect):
         """아주 단순하게: 경로 중 하나라도 rect 안에 들어오면 통과했다고 판단."""
@@ -108,10 +197,12 @@ class Scarecrow:
 
         # 방금 deep 컷도 남은 몸통에 걸쳐 있으면 자국으로 추가
         if self._path_intersects_rect(points, self.base_rect):
-            self.cuts.append({
-                "points": list(points),
-                "depth": depth
-            })
+            clipped = self._clip_points_to_rect(points, self.base_rect)
+            if len(clipped) >= 2:
+                self.cuts.append({
+                    "points": clipped,
+                    "depth": depth
+                })
 
     def draw(self, surface):
         # 몸통이 남아있지 않으면 아무것도 그리지 않음
