@@ -30,14 +30,14 @@ def draw_hud(
     screen,
     font,
     sword_mass,
+    mouse_mass,
     last_slash_energy,
     last_required_energy,
     last_cut_ratio,
 ):
     lines = [
-        # [] 키 안내 삭제, 설정창에서 변경하도록 안내
-        f"검 무게: {sword_mass:.2f} kg   (O 키 설정창에서 변경)",
-        f"마지막 베기 에너지: {last_slash_energy:.2f}",
+        f"검 무게: {sword_mass:.2f} kg / 마우스 무게: {mouse_mass:.2f} kg   (O 키 설정창에서 변경)",
+        f"마지막 베기 에너지(마우스 기준): {last_slash_energy:.2f}",
         f"완전 절단 필요 에너지(해당 경로 기준): {last_required_energy:.2f}",
         f"이번 베기 강도: {last_cut_ratio * 100.0:.1f} %",
         "좌/우 클릭: 베기, R: 허수아비 리셋, I: 정보창, O: 설정창",
@@ -56,8 +56,9 @@ def draw_info_overlay(screen, font):
         "· 좌/우 클릭을 누른 동안의 마우스 움직임이 한 번의 '베기'입니다.",
         "· 검은 질량이 있어서 마우스를 바로 따라가지 못하고,",
         "  무거울수록 더 둔하게 움직입니다.",
-        "· 검 팁의 속도로 운동에너지 E = 1/2 m v^2 를 계산합니다.",
-        "· 한 번의 베기에서 가장 큰 E를 '검의 에너지'로 사용합니다.",
+        "· 마우스(손)의 속도로 운동에너지 E = 1/2 m_mouse v^2 를 계산합니다.",
+        "  (m_mouse 는 설정창의 '마우스 질량' 값)",
+        "· 한 번의 베기에서 가장 큰 E를 '이번 베기의 에너지'로 사용합니다.",
         "· 허수아비 안에서 검이 지나간 실제 길이를 L_inside 라고 할 때,",
         "  이 경로 전체를 완전히 자르는 데 필요한 에너지는",
         "  E_required = E_init + k * L_inside 로 계산합니다.",
@@ -82,18 +83,18 @@ def draw_settings_overlay(
     font,
     selected_index,
     sword_mass,
+    mouse_mass,
     e_init,
     energy_per_len,
-    control_mult,
 ):
     """O 키로 토글되는 설정창 (이 창이 켜져 있을 때는 게임이 멈춤)."""
     settings_lines = [
         "[설정]",
         "",
         f"1. 검 질량 (kg): {sword_mass:.2f}",
-        f"2. E_init (처음 베이기 시작하는 에너지): {e_init:.2f}",
-        f"3. k (길이 1px 당 추가 에너지): {energy_per_len:.3f}",
-        f"4. 컨트롤 민감도: {control_mult:.2f}",
+        f"2. 마우스 질량 (kg): {mouse_mass:.2f}",
+        f"3. E_init (처음 베이기 시작하는 에너지): {e_init:.2f}",
+        f"4. k (길이 1px 당 추가 에너지): {energy_per_len:.3f}",
         "",
         "↑ / ↓ : 항목 선택",
         "← / → : 값 조절",
@@ -132,21 +133,24 @@ def main():
     scarecrow = Scarecrow()
 
     start_pos = (WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 100)
-    sword_mass = 1.5
+
+    # 질량들
+    sword_mass = 1.5       # 기본 롱소드 질량
+    mouse_mass = 0.5       # 기본 마우스(손) 질량, 적당히 가정
+
     sword = SwordController(sword_mass, start_pos)
 
     # 절단 에너지 파라미터 (설정창에서 조절 가능)
     e_init = E_INIT_DEFAULT
     energy_per_len = ENERGY_PER_LENGTH_DEFAULT
-    control_mult = 1.0
-    sword.set_control_multiplier(control_mult)
 
     # 슬래시 기록 상태
     attack_buttons_down = set()
     slash_recording = False
     slash_points = []
     slash_max_energy = 0.0
-    prev_tip_pos = pygame.Vector2(start_pos)
+
+    prev_mouse_pos = pygame.Vector2(start_pos)
 
     # 마지막 슬래시 결과 (HUD 표시용)
     last_slash_energy = 0.0
@@ -156,7 +160,8 @@ def main():
     # UI 상태
     show_info = False
     show_settings = False
-    settings_index = 0  # 0: mass, 1: e_init, 2: energy_per_len, 3: control_mult
+    # 0: sword_mass, 1: mouse_mass, 2: e_init, 3: energy_per_len
+    settings_index = 0
 
     running = True
     while running:
@@ -197,23 +202,21 @@ def main():
                             sword_mass = clamp(sword_mass - 0.1, 0.5, 4.0)
                             sword.set_mass(sword_mass)
                         elif settings_index == 1:
-                            e_init = max(0.0, e_init - 0.5)
+                            mouse_mass = clamp(mouse_mass - 0.1, 0.1, 5.0)
                         elif settings_index == 2:
-                            energy_per_len = max(0.0, energy_per_len - 0.005)
+                            e_init = max(0.0, e_init - 0.5)
                         elif settings_index == 3:
-                            control_mult = max(0.1, control_mult - 0.1)
-                            sword.set_control_multiplier(control_mult)
+                            energy_per_len = max(0.0, energy_per_len - 0.005)
                     elif event.key == pygame.K_RIGHT:
                         if settings_index == 0:
                             sword_mass = clamp(sword_mass + 0.1, 0.5, 4.0)
                             sword.set_mass(sword_mass)
                         elif settings_index == 1:
-                            e_init = e_init + 0.5
+                            mouse_mass = clamp(mouse_mass + 0.1, 0.1, 5.0)
                         elif settings_index == 2:
-                            energy_per_len = energy_per_len + 0.005
+                            e_init = e_init + 0.5
                         elif settings_index == 3:
-                            control_mult = control_mult + 0.1
-                            sword.set_control_multiplier(control_mult)
+                            energy_per_len = energy_per_len + 0.005
 
             # 설정창이 켜져 있을 때는 새 슬래시를 시작하지 않는다
             if not show_settings:
@@ -223,7 +226,8 @@ def main():
                         slash_recording = True
                         slash_points = []
                         slash_max_energy = 0.0
-                        prev_tip_pos = pygame.Vector2(sword.pos)
+                        # 슬래시 시작 시점의 마우스 위치 기준으로 속도 계산
+                        prev_mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
                     attack_buttons_down.add(event.button)
 
                 elif event.type == pygame.MOUSEBUTTONUP and event.button in (1, 3):
@@ -257,14 +261,15 @@ def main():
 
         # 슬래시 기록 중일 때만 에너지/경로 기록
         if slash_recording:
-            speed = compute_speed(prev_tip_pos, tip, dt)
-            energy = kinetic_energy(sword_mass, speed)
+            # 마우스(손) 속도 기준으로 에너지 계산
+            speed_mouse = compute_speed(prev_mouse_pos, mouse_pos, dt)
+            energy = kinetic_energy(mouse_mass, speed_mouse)
 
             slash_points.append((float(tip.x), float(tip.y)))
             if energy > slash_max_energy:
                 slash_max_energy = energy
 
-        prev_tip_pos = tip.copy()
+            prev_mouse_pos = pygame.Vector2(mouse_pos)
 
         # --- 그리기 ---
         screen.fill(BACKGROUND_COLOR)
@@ -283,6 +288,7 @@ def main():
             screen,
             font,
             sword_mass,
+            mouse_mass,
             last_slash_energy,
             last_required_energy,
             last_cut_ratio,
@@ -296,9 +302,9 @@ def main():
                 font,
                 settings_index,
                 sword_mass,
+                mouse_mass,
                 e_init,
                 energy_per_len,
-                control_mult,
             )
 
         pygame.display.flip()
