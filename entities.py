@@ -110,35 +110,66 @@ class SwordController:
 class Scarecrow:
     """
     허수아비 본체 + 베인 자국들을 관리.
-    base_rect: 현재 남아 있는 허수아비 몸통
+    base_rect: 현재 남아 있는 허수아비의 대략적인 바운딩 박스
+    body_polygon: 실제 화면에 그릴 허수아비 몸통 모양(다각형). 없으면 직사각형.
     cuts: 개별 베기 자국 (각각 연속적인 경로와 연속적인 베임 비율)
     """
 
     def __init__(self):
         x, y, w, h = SCARECROW_RECT
         self.base_rect = pygame.Rect(x, y, w, h)
+        self.body_polygon = None  # 처음에는 그냥 직사각형
         self.cuts = []  # {"points": [...], "ratio": float}
 
     def reset(self):
         """허수아비를 처음 상태로 되돌린다."""
         x, y, w, h = SCARECROW_RECT
         self.base_rect = pygame.Rect(x, y, w, h)
+        self.body_polygon = None
         self.cuts.clear()
 
-    # --- 내부 유틸리티 ---
+    # ---------- 기본 도형 안에 포함 여부 ----------
 
-    def _clip_points_to_rect(self, points, rect):
+    def _point_in_polygon(self, x, y, poly):
+        """일반적인 다각형(point-in-polygon, ray casting)."""
+        inside = False
+        n = len(poly)
+        j = n - 1
+        for i in range(n):
+            xi, yi = poly[i]
+            xj, yj = poly[j]
+            # y 사이에 교차가 있고, x가 그 교차점 왼쪽에 있는지 체크
+            if ((yi > y) != (yj > y)):
+                # 분모 0 방지용 작은 값 추가
+                t = (y - yi) / ((yj - yi) + 1e-12)
+                x_intersect = xi + t * (xj - xi)
+                if x < x_intersect:
+                    inside = not inside
+            j = i
+        return inside
+
+    def _contains_point(self, x, y):
+        """현재 허수아비 몸통(직사각형 또는 폴리곤)에 점이 들어있는지."""
+        if self.body_polygon is not None:
+            return self._point_in_polygon(x, y, self.body_polygon)
+        else:
+            return self.base_rect.collidepoint(x, y)
+
+    # ---------- 경로에서 몸통과 겹치는 구간만 잘라내기 ----------
+
+    def _clip_points_to_body(self, points):
         """
-        경로(points)에서 rect와 실제로 겹치는 구간만 잘라낸다.
-        points 중 rect 내부에 있는 첫/마지막 점을 기준으로
+        경로(points)에서 허수아비 몸통과 실제로 겹치는 구간만 잘라낸다.
+        points 중 '몸통 내부'에 있는 첫/마지막 점을 기준으로
         양 끝은 선분 보간으로 경계까지 확장한다.
         """
-        if len(points) < 2:
+        if len(points) < 2 or self.base_rect.height <= 0:
             return []
 
-        # rect 안에 들어가는 점들의 인덱스
+        contains = self._contains_point
+
         inside_indices = [
-            i for i, (x, y) in enumerate(points) if rect.collidepoint(x, y)
+            i for i, (x, y) in enumerate(points) if contains(x, y)
         ]
         if not inside_indices:
             return []
@@ -154,7 +185,7 @@ class Scarecrow:
                 mid = (left + right) / 2.0
                 mx = ax + (bx - ax) * mid
                 my = ay + (by - ay) * mid
-                if rect.collidepoint(mx, my):
+                if contains(mx, my):
                     right = mid
                 else:
                     left = mid
@@ -170,7 +201,7 @@ class Scarecrow:
                 mid = (left + right) / 2.0
                 mx = ax + (bx - ax) * mid
                 my = ay + (by - ay) * mid
-                if rect.collidepoint(mx, my):
+                if contains(mx, my):
                     left = mid
                 else:
                     right = mid
@@ -192,7 +223,7 @@ class Scarecrow:
         # 중간의 내부 점들
         for i in range(first_i, last_i + 1):
             x, y = points[i]
-            if rect.collidepoint(x, y):
+            if contains(x, y):
                 clipped.append(points[i])
 
         # 끝점
@@ -243,7 +274,9 @@ class Scarecrow:
     def _apply_full_cut_if_possible(self, inside_path, cut_ratio):
         """
         충분히 강한 베기(cut_ratio ≈ 1.0)이고,
-        허수아비 폭 전체를 가로질렀다면 위쪽 몸통을 잘라낸다.
+        허수아비 폭 전체를 가로질렀다면,
+        슬래시 경로를 그대로 절단선으로 사용해서
+        아래쪽 몸통만 남기도록 폴리곤을 만든다.
         """
         if cut_ratio < 0.999:
             return False
@@ -264,20 +297,35 @@ class Scarecrow:
         if min_x > rect.left + 2 or max_x < rect.right - 2:
             return False
 
-        # 절단 높이(y)는 베기 경로의 평균 높이 근처로
-        cut_y = sum(ys) / len(ys)
+        # ---- 여기서부터: 경로를 이용해 '아래쪽 몸통 폴리곤' 만들기 ----
+        body_poly = [
+            (rect.left, rect.bottom),
+            (rect.right, rect.bottom),
+        ]
 
-        if cut_y <= rect.top + 2 or cut_y >= rect.bottom - 2:
-            return False
+        # 경로를 뒤에서부터 추가하면, 아래쪽 영역(바닥 → 오른쪽 → 경로 → 왼쪽 → 바닥)이 됨
+        for p in reversed(inside_path):
+            if body_poly and abs(body_poly[-1][0] - p[0]) < 1e-3 and abs(
+                body_poly[-1][1] - p[1]
+            ) < 1e-3:
+                continue
+            body_poly.append(p)
 
-        # 위쪽은 날아가고, 아래쪽 몸통만 남도록 rect를 갱신
-        new_top = int(cut_y)
-        new_height = rect.bottom - new_top
-        if new_height <= 0:
-            # 몸통이 완전히 사라진 경우
-            self.base_rect = pygame.Rect(rect.left, rect.bottom, rect.width, 0)
-        else:
-            self.base_rect = pygame.Rect(rect.left, new_top, rect.width, new_height)
+        # base_rect도 남은 폴리곤의 바운딩 박스로 축소 (충돌/클리핑용)
+        px = [p[0] for p in body_poly]
+        py = [p[1] for p in body_poly]
+        min_px, max_px = min(px), max(px)
+        min_py, max_py = min(py), max(py)
+
+        new_rect = pygame.Rect(
+            int(min_px),
+            int(min_py),
+            int(max_px - min_px),
+            int(max_py - min_py),
+        )
+
+        self.base_rect = new_rect
+        self.body_polygon = body_poly
 
         return True
 
@@ -298,8 +346,8 @@ class Scarecrow:
         if self.base_rect.height <= 0 or len(points) < 2:
             return 0.0, 0.0, 0.0, False
 
-        # 허수아비 내부 경로 추출
-        inside = self._clip_points_to_rect(points, self.base_rect)
+        # 허수아비 내부(또는 몸통 폴리곤) 경로 추출
+        inside = self._clip_points_to_body(points)
         if len(inside) < 2:
             return 0.0, 0.0, 0.0, False
 
@@ -343,8 +391,12 @@ class Scarecrow:
     def draw(self, surface):
         """허수아비 몸통과 자국들을 그린다."""
         if self.base_rect.height > 0:
-            pygame.draw.rect(surface, SCARECROW_COLOR, self.base_rect)
-            pygame.draw.rect(surface, SCARECROW_OUTLINE, self.base_rect, 2)
+            if self.body_polygon is not None:
+                pygame.draw.polygon(surface, SCARECROW_COLOR, self.body_polygon)
+                pygame.draw.polygon(surface, SCARECROW_OUTLINE, self.body_polygon, 2)
+            else:
+                pygame.draw.rect(surface, SCARECROW_COLOR, self.base_rect)
+                pygame.draw.rect(surface, SCARECROW_OUTLINE, self.base_rect, 2)
 
         # 베인 자국들
         for cut in self.cuts:

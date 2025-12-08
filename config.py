@@ -27,7 +27,7 @@ BACKGROUND_COLOR = (30, 30, 30)
 SCARECROW_COLOR = (190, 170, 90)
 SCARECROW_OUTLINE = (90, 70, 30)
 
-SLASH_COLOR = (0, 0, 0)  # 허수아비에 남는 자국은 검정색
+SLASH_COLOR = (220, 40, 40)  # 허수아비에 남는 자국은 빨간색
 
 HUD_TEXT_COLOR = (230, 230, 230)
 

@@ -29,7 +29,7 @@ def draw_hud(
 ):
     """화면 상단 HUD 그리기."""
     lines = [
-        f"검 무게: {sword_mass:.2f} kg / 마우스 무게: {mouse_mass:.2f} kg   (O 키 설정창에서 변경)",
+        f"검 무게: {sword_mass:.2f} kg / 마우스 무게: {mouse_mass:.2f} kg",
         f"마지막 베기 에너지(마우스 기준): {last_slash_energy:.2f}",
         f"완전 절단 필요 에너지(해당 경로 기준): {last_required_energy:.2f}",
         f"이번 베기 강도: {last_cut_ratio * 100.0:.1f} %",
