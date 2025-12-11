@@ -2,7 +2,7 @@
 import pygame
 import math
 
-from config import (
+from .config import (
     SCARECROW_RECT,
     SCARECROW_COLOR,
     SCARECROW_OUTLINE,
@@ -10,7 +10,7 @@ from config import (
     SWORD_BASE_MASS,
     SWORD_STIFFNESS_BASE,
 )
-from physics import distance, polyline_length
+from .physics import distance, polyline_length
 
 
 class SwordController:

@@ -1,7 +1,7 @@
 
 import pygame
 
-from config import (
+from resources.config import (
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
     FPS,
@@ -9,16 +9,16 @@ from config import (
     E_INIT_DEFAULT,
     ENERGY_PER_LENGTH_DEFAULT,
 )
-from physics import compute_speed, kinetic_energy
-from entities import SwordController, Scarecrow
-from ui import (
+from resources.physics import compute_speed, kinetic_energy
+from resources.entities import SwordController, Scarecrow
+from resources.ui import (
     create_font,
     draw_hud,
     draw_start_tip_overlay,
     draw_info_overlay,
     draw_settings_overlay,
 )
-from input import UIState, SlashState, handle_events
+from resources.input import UIState, SlashState, handle_events
 
 
 def main():
@@ -32,7 +32,7 @@ def main():
     pygame.mouse.set_visible(False)
 
     # --- 검 이미지 로드 ---
-    sword_image = pygame.image.load("sword.png").convert_alpha()
+    sword_image = pygame.image.load("resources/sword.png").convert_alpha()
     # 필요하면 크기 살짝 조정 (너무 크면 줄이기)
     sword_image = pygame.transform.smoothscale(sword_image, (64, 64))
 

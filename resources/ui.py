@@ -1,7 +1,7 @@
 
 import pygame
 
-from config import (
+from .config import (
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
     HUD_TEXT_COLOR,

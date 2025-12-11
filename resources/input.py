@@ -1,8 +1,8 @@
 
 import pygame
 
-from config import SWORD_MIN_MASS, SWORD_MAX_MASS
-from ui import get_info_scroll_limits
+from .config import SWORD_MIN_MASS, SWORD_MAX_MASS
+from .ui import get_info_scroll_limits
 
 
 def clamp(value, vmin, vmax):
